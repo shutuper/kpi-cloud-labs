@@ -1,0 +1,32 @@
+#playbooks/mysql/tasks/main.yaml
+
+- name: Installing Mysql  and dependencies
+  package:
+    name: "{{item}}"
+    state: present
+    update_cache: yes
+  loop:
+    - mysql-server
+    - mysql-client
+    - python3-mysqldb
+    - libmysqlclient-dev
+  become: yes
+- name: creating db
+  community.mysql.mysql_db:
+    name: "testdb"
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+- name: Create database user with all testdb privileges
+  community.mysql.mysql_user:
+    name: testuser
+    password: "TestUs3r4DB"
+    priv: 'testdb.*:ALL'
+    host: '%'
+    state: present
+    login_unix_socket: /run/mysqld/mysqld.sock
+- name: Enable remote login to mysql
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: '^bind-address'
+    line: 'bind-address = 0.0.0.0'
+  notify: "Restart MySQL"

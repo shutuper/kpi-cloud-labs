@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: spring-app
+
+  datasource:
+    url: jdbc:mysql://192.168.56.15:3306/testdb
+    username: testuser
+    password: TestUs3r4DB
+  jpa:
+    show-sql: ${jpa.show-sql:false}
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+

@@ -1,0 +1,38 @@
+#playbooks/spring-boot/tasks/main.yaml
+
+- name: Create directory for Spring Boot app
+  file:
+    path: /opt/spring-app
+    state: directory
+
+- name: Copy jar file
+  copy:
+    src: spring-app-0.0.1-SNAPSHOT.jar
+    dest: /opt/spring-app/demo.jar
+    mode: '0755'
+
+- name: Create systemd service
+  copy:
+    content: |
+      [Unit]
+      Description=Demo Spring Boot Service
+      After=network.target
+
+      [Service]
+      User=root
+      ExecStart=/usr/bin/java -jar /opt/spring-app/demo.jar
+      SuccessExitStatus=143
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/demo.service
+
+- name: Reload systemd
+  command: systemctl daemon-reload
+
+- name: Enable and start demo service
+  service:
+    name: demo
+    state: started
+    enabled: yes

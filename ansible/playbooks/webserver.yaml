@@ -1,0 +1,8 @@
+#webserver.yaml
+- name: Configure web servers
+  hosts: webservers
+  become: yes
+  roles:
+    - common
+    - java
+    - spring-boot

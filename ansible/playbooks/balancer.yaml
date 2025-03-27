@@ -1,0 +1,7 @@
+#balancer.yaml
+- name: Configure balancer
+  hosts: balancer
+  become: yes
+  roles:
+    - common
+    - nginx
