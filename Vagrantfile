@@ -19,24 +19,6 @@ Vagrant.configure("2") do |config|
     end
   end
 
-    # -----------------------------
-    # DATABASE SERVER
-    # -----------------------------
-    config.vm.define "yehor-hnitii-ip42mp-db" do |db|
-      db.vm.hostname = "yehor-hnitii-ip42mp-db.local"
-      db.vm.network "private_network", ip: "192.168.56.15"
-      db.vm.provider "virtualbox" do |vb|
-        vb.name = "yehor-hnitii-ip42mp-db"
-        vb.memory = 512
-      end
-      db.vm.provision "ansible" do |ansible|
-        ansible.playbook = "ansible/playbooks/dbserver.yaml"
-        ansible.inventory_path = "ansible/inventory.ini"
-        ansible.limit = "yehor-hnitii-ip42mp-db"
-        ansible.verbose = "v"
-      end
-    end
-
   # -----------------------------
   # WEB SERVER 1
   # -----------------------------

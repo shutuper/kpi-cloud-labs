@@ -1,7 +1,0 @@
-#dbserver.yaml
-- name: Configure database server
-  hosts: dbserver
-  become: yes
-  roles:
-    - common
-    - mysql

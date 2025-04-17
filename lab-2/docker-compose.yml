@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  primary:
+    image: docker.io/bitnami/postgresql:16
+    platform: linux/arm64
+    container_name: pg-primary
+    restart: unless-stopped
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=master            #enable streaming replication
+      - POSTGRESQL_REPLICATION_USER=${REPL_USER}
+      - POSTGRESQL_REPLICATION_PASSWORD=${REPL_PASSWORD}
+      - POSTGRESQL_POSTGRES_PASSWORD=${PG_SUPERPASS}
+      - POSTGRESQL_USERNAME=testuser
+      - POSTGRESQL_PASSWORD=${APP_PASSWORD}
+      - POSTGRESQL_DATABASE=testdb
+    volumes:
+      - primary_data:/bitnami/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser"]
+      interval: 10s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  replica1: &replica_base
+    image: docker.io/bitnami/postgresql:16
+    platform: linux/arm64
+    container_name: pg-replica1
+    depends_on: [primary]
+    restart: unless-stopped
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_MASTER_HOST=pg-primary
+      - POSTGRESQL_MASTER_PORT_NUMBER=5432
+      - POSTGRESQL_POSTGRES_PASSWORD=${PG_SUPERPASS}
+      - POSTGRESQL_REPLICATION_USER=${REPL_USER}
+      - POSTGRESQL_REPLICATION_PASSWORD=${REPL_PASSWORD}
+      - POSTGRESQL_USERNAME=testuser
+      - POSTGRESQL_PASSWORD=${APP_PASSWORD}
+    volumes:
+      - replica1_data:/bitnami/postgresql
+
+  replica2:
+    <<: *replica_base
+    container_name: pg-replica2
+    volumes:
+      - replica2_data:/bitnami/postgresql
+
+  pgpool:
+    image: docker.io/bitnami/pgpool:4
+    platform: linux/arm64
+    container_name: pgpool
+    depends_on: [primary, replica1, replica2]
+    restart: unless-stopped
+    environment:
+      # Tell Pgpool about every backend: id:hostname:port
+      - PGPOOL_BACKEND_NODES=0:pg-primary:5432,1:pg-replica1:5432,2:pg-replica2:5432
+      - PGPOOL_BACKEND_APPLICATION_NAMES=primary,replica1,replica2
+      - PGPOOL_ENABLE_LOAD_BALANCING=yes               # distribute SELECTs across replicas
+      - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction       # make sure writes never hit replicas
+      - PGPOOL_SR_CHECK_USER=${REPL_USER}
+      - PGPOOL_SR_CHECK_PASSWORD=${REPL_PASSWORD}
+      - PGPOOL_POSTGRES_USERNAME=postgres
+      - PGPOOL_POSTGRES_PASSWORD=${PG_SUPERPASS}
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD=${PGPOOL_ADMIN_PASSWORD}
+      - PGPOOL_POSTGRES_CUSTOM_USERS=testuser
+      - PGPOOL_POSTGRES_CUSTOM_PASSWORDS=${APP_PASSWORD}
+    ports:
+      - "6432:5432"    #<- connect here from host
+
+volumes:
+  primary_data:
+  replica1_data:
+  replica2_data:
