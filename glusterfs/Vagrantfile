@@ -1,0 +1,54 @@
+Vagrant.configure('2') do |config|
+  config.vm.box = 'net9/ubuntu-24.04-arm64'
+
+  # ----------------------------------------------------------------------
+  # define three GlusterFS nodes
+  # ----------------------------------------------------------------------
+  (1..3).each do |i|
+    config.vm.define "yehor-hnitii-ip42mp-gfs#{i}" do |g|
+      g.vm.hostname = "yehor-hnitii-ip42mp-gfs#{i}"
+      g.vm.network  'private_network', ip: "192.168.56.11#{i}"
+
+      g.vm.provider 'virtualbox' do |vb|
+        vb.name   = "yehor-hnitii-ip42mp-gfs#{i}"
+        vb.memory = 1024
+        vb.cpus   = 1
+
+        # SATA controller that Vagrant recognises
+        vb.customize ['storagectl', :id,
+                      '--name', 'SATA Controller',
+                      '--add',  'sata',
+                      '--controller', 'IntelAhci']
+
+        # two 6-GB disks
+        vb.customize ['createhd', '--filename', "diskA-#{i}.vdi", '--size', '6144']
+        vb.customize ['createhd', '--filename', "diskB-#{i}.vdi", '--size', '6144']
+
+        vb.customize ['storageattach', :id,
+                      '--storagectl', 'SATA Controller',
+                      '--port', 1, '--device', 0,
+                      '--type', 'hdd', '--medium', "diskA-#{i}.vdi"]
+
+        vb.customize ['storageattach', :id,
+                      '--storagectl', 'SATA Controller',
+                      '--port', 2, '--device', 0,
+                      '--type', 'hdd', '--medium', "diskB-#{i}.vdi"]
+      end
+
+      # --------------------------------------------------------------
+      # per-node playbook (runs inside each guest)
+      # --------------------------------------------------------------
+      g.vm.provision 'ansible_local' do |ans|
+        ans.playbook = 'ansible/node.yml'
+      end
+
+      # run cluster.yml only when the *third* machine is being provisioned
+      if i == 3
+        g.vm.provision 'ansible' do |ans|
+          ans.playbook = 'ansible/gfs.yml'
+          ans.limit    = 'yehor-hnitii-ip42mp-gfs3' # optional, already implied
+      end
+    end
+  end
+  end
+end

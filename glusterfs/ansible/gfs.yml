@@ -1,0 +1,30 @@
+- name: Configure GlusterFS cluster (run once on yehor-hnitii-ip42mp-gfs3)
+  hosts: yehor-hnitii-ip42mp-gfs3            # executed only on the master node
+  become: true
+
+  vars:
+    volume_name: gv_01
+    brick_dir:   /mnt/data/gfs_vol
+
+  tasks:
+    - name: Probe all peers into the cluster
+      loop: "{{ groups['all'] }}"
+      command: gluster peer probe {{ item }}
+      register: probe
+      failed_when: probe.rc not in [0,1]    # rc=1 => already probed
+      ignore_errors: yes
+
+    - name: Create replicated Gluster volume
+      command: >
+        gluster volume create {{ volume_name }}
+        replica {{ groups['all'] | length }} transport tcp
+        {% for h in groups['all'] %}
+          {{ h }}:{{ brick_dir }}
+        {% endfor %} force
+      register: vol_create
+      failed_when: vol_create.rc not in [0,1]   # rc=1 => exists
+
+    - name: Start the Gluster volume
+      command: gluster volume start {{ volume_name }}
+      register: vol_start
+      failed_when: vol_start.rc not in [0,1]    # rc=1 => already started

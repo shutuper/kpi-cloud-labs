@@ -1,0 +1,82 @@
+- name: Prepare each GlusterFS node
+  hosts: all
+  become: true
+
+  vars:
+    data_disks: [ /dev/sdb, /dev/sdc ]
+    vg_name:    vg_01
+    lv_name:    lv_01
+    lv_size:    5g
+    mount_pt:   /mnt/data
+    brick_dir:  /mnt/data/gfs_vol
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - lvm2
+          - glusterfs-server
+        state: present
+        update_cache: yes
+
+    - name: Initialise disks as physical volumes (idempotent)
+      command: pvcreate {{ item }}
+      args:
+        creates: "/dev/disk/by-id/lvm-pv-uuid"
+      loop: "{{ data_disks }}"
+      ignore_errors: yes          # rc=5 if PV already exists
+
+    - name: Ensure volume group exists
+      community.general.lvg:
+        vg:  "{{ vg_name }}"
+        pvs: "{{ data_disks | join(',') }}"
+        pesize: 4M
+
+    - name: Ensure mirrored logical volume exists
+      community.general.lvol:
+        vg:   "{{ vg_name }}"
+        lv:   "{{ lv_name }}"
+        size: "{{ lv_size }}"
+        opts: '--type raid1'
+        pvs:  "{{ data_disks | join(',') }}"
+
+    - name: Format LV ext4
+      filesystem:
+        fstype: ext4
+        dev: "/dev/{{ vg_name }}/{{ lv_name }}"
+
+    - name: Create mount point
+      file:
+        path: "{{ mount_pt }}"
+        state: directory
+        mode: '0755'
+
+    - name: Mount LV and persist in fstab
+      mount:
+        path: "{{ mount_pt }}"
+        src:  "/dev/{{ vg_name }}/{{ lv_name }}"
+        fstype: ext4
+        opts: defaults
+        state: mounted
+
+    - name: Create Gluster brick directory
+      file:
+        path: "{{ brick_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Add cluster hostnames to /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "192.168.56.111 yehor-hnitii-ip42mp-gfs1"
+        - "192.168.56.112 yehor-hnitii-ip42mp-gfs2"
+        - "192.168.56.113 yehor-hnitii-ip42mp-gfs3"
+
+    - name: Ensure glusterd is running
+      service:
+        name: glusterd
+        state: started
+        enabled: yes
